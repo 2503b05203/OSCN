@@ -1,143 +1,231 @@
 #include <iostream>
+
 #include <string>
-#include <vector>
-#include <cmath>
+
 #include <algorithm>
 
 using namespace std;
 
-int calculateRedundantBits(int m) {
-    int r = 0;
-    while (pow(2, r) < (m + r + 1)) {
-        r++;
-    }
-    return r;
-}
+class hamming{
 
-int calculateParityBit(const vector<int>& code, int n, int parityBitPosition) {
-    int parityCount = 0;
-    for (int i = parityBitPosition; i <= n; i++) {
-        if ((i & parityBitPosition) != 0) {
-            if (i != parityBitPosition) {
-                if (code[i] == 1) {
-                    parityCount++;
+    public:
+
+        string data;   //it is the raw data received
+
+        int m , r = 0; // n is the length of raw data and r is the number of redundant bits
+
+        char * msg; // it will store the all bits (data + redundant). We made it dynamic because at compile time we dont know how much redundant bits will be there, we will initialize memory to it once we know the number of redundant bits.
+
+        hamming(string data){
+
+              this->data = data;
+
+            //reversing the data received
+
+            reverse(data.begin(),data.end());
+
+            m = data.size();
+
+            int power = 1;
+
+ 
+
+            //finding the number of redundant bits and storing them in r
+
+            while(power < (m + r + 1)){
+
+                r++;
+
+                power*=2;
+
+            }
+
+            //Allocating memory to our dynamic msg array(Note we are using one based indexing).
+
+            msg = new char[m+r+1];
+
+            int curr = 0;
+
+ 
+
+            //initializing the msg with data bits and for redundant bits, an initial value of n
+
+            for(int i = 1 ; i <= m+r ; i++){
+
+                if(i & (i-1)){
+
+                    msg[i] = data[curr++];
+
                 }
+
+                else msg[i] = 'n';
+
             }
+
+            //function call to set the redundant bits
+
+            setRedundantBits();
+
         }
-    }
-    
-    return (parityCount % 2 == 0) ? 0 : 1;
-}
 
-vector<int> generateHammingCode(string data, int m) {
-    int r = calculateRedundantBits(m);
-    int n = m + r; 
+        //function to show the whole msg
 
-    vector<int> code(n + 1, 0);
+        void showmsg(){
 
-    int dataBitIndex = m - 1; 
-    for (int i = n; i >= 1; i--) {
-        if ((i & (i - 1)) == 0) {
-        } else {
-            if (dataBitIndex >= 0) {
-                code[i] = data[dataBitIndex] - '0'; 
-                dataBitIndex--;
+            cout << "the data packet to be sent is :   ";
+
+            for(int i = m+r ; i >= 1 ; i--){
+
+                cout << msg[i] << " ";
+
             }
+
+            cout << endl;
+
         }
-    }
-    
-    for (int i = 0; i < r; i++) {
-        int parityBitPosition = pow(2, i);
-        code[parityBitPosition] = calculateParityBit(code, n, parityBitPosition);
-    }
 
-    return code;
-}
+        void setRedundantBits(){
 
-void receiveHammingCode(vector<int> receivedCode) {
-    int n = receivedCode.size() - 1; 
-    int r = 0;
-    
-    while(pow(2, r) <= n) {
-        r++;
-    }
-    int temp_m = 0;
-    int temp_r = 0;
-    while (temp_m + temp_r < n) {
-        if ((temp_m + temp_r + 1) == pow(2, temp_r)) {
-            temp_r++;
-        }
-        temp_m++;
-    }
-    r = temp_r;
+            //for first redundant bit, check all those data bits at index where the first bit of index is set(1) similarly for second redundant bit, check all those data bits at index where the second bit of index is set(1), similarly for third redundant bit check all those data bits at index where the third bit of index is set to 1 and so on.
 
-    vector<int> recalculatedParity(r);
-    int errorPosition = 0;
+            int bit = 0;
 
-    for (int i = 0; i < r; i++) {
-        int parityBitPosition = pow(2, i);
-        
-        int parityCount = 0;
-        for (int j = parityBitPosition; j <= n; j++) {
-            if ((j & parityBitPosition) != 0) {
-                if (receivedCode[j] == 1) {
-                    parityCount++;
+            //outer loop runs for redundant bits (1 ,2 ,4 ,8 ....)
+
+            for(int i = 1 ; i  <= m+r ; i*=2){
+
+                int count = 0;
+
+                //inner loop runs for data bits
+
+                for(int j = i+1 ; j<=m+r ; j++){
+
+                    // checking if the data bit corresponds to our redundant bit or not using bit manipulation
+
+                    if(j & (1 << bit)){
+
+                        if(msg[j] == '1') count++; // counting the number of ones in corresponding data bits
+
+                    }
+
                 }
+
+                //setting up redundant bits
+
+                if(count & 1) msg[i] = '1';
+
+                else msg[i] = '0';
+
+                //increasing the bit position.
+
+                bit++;
+
             }
+
+            //showing up the message to be sent(data + redundant)
+
+            showmsg();
+
         }
-        
-        recalculatedParity[i] = (parityCount % 2 == 0) ? 0 : 1;
-    }
 
-    for (int i = 0; i < r; i++) {
-        if (recalculatedParity[i] == 1) {
-            errorPosition += pow(2, i);
+        void receiver(){
+
+            //this ans will store the redundant bits, if they were right then according to even parity they will store 0 else if some error was made in a bit it will store 1
+
+            string ans = "";
+
+            int bit = 0;
+
+            //this loop corresponds to the logic used in set redundant bits function
+
+            for(int i = 1 ; i  <= m+r ; i*=2){
+
+                int count = 0;
+
+                for(int j = i+1 ; j<=m+r ; j++){
+
+                    if(j & (1 << bit)){
+
+                        if(msg[j] == '1') count++;
+
+                    }
+
+                }
+
+                //incrementing the ans variable with the parity of redundant bit
+
+                // if it was right then add 0 else 1
+
+                if(count & 1){
+
+                    if(msg[i] == '1') ans.push_back('0');
+
+                    else ans.push_back('1');
+
+                }
+
+                else{
+
+                    if(msg[i]=='0') ans.push_back('0');
+
+                    else ans.push_back('1');
+
+                }
+
+                bit++;
+
+            }
+
+            // if the ans had any occurrence of 1 then there is some fault
+
+            if(ans.find('1') != string::npos){
+
+                int power = 1;
+
+                int wrongbit = 0;
+
+                //evaluating the binary expression of ans variable
+
+                for(int i = 0 ; i < ans.size() ; i++){
+
+                    if(ans[i]=='1') wrongbit+=power;
+
+                    power*=2;
+
+                }
+
+                cout << "bit number " << wrongbit << " is wrong and having error " << endl;
+
+            }
+
+            // if the ans dont have any occurrence of 1 then it is correct
+
+            else{
+
+                cout << "correct data packet received " << endl;
+
+            }
+
         }
-    }
 
-    if (errorPosition == 0) {
-        cout << "Correct data packet received" << endl;
-    } else {
-        cout << "Error detected at bit position " << errorPosition << "." << endl;
-    }
-}
+};
 
+int main(){
 
-int main() {
-    string data;
-    cout << "Enter the binary data string (e.g., 1011001): ";
-    cin >> data;
-    string original_data = data;
-    
-    cout << "Input data: " << original_data << endl;
+      string data = "1011001";
 
-    int m = data.length();
-    reverse(data.begin(), data.end()); 
-    int r = calculateRedundantBits(m);
-    int n = m + r;
+    hamming h(data);
 
-    vector<int> codeToSend = generateHammingCode(data, m);
-    
-    cout << "The data packet to be sent is: ";
-    for (int i = 1; i <= n; i++) {
-        cout << codeToSend[i] << " ";
-    }
-    cout << "\n" << endl;
+    // manipulating any ith data bit to check if receiver is detecting a error in that bit. If you eliminate the following line then correct code will be sent to receiver following that no error is received
 
-    
-    cout << "Simulation 1 (No Error):" << endl;
-    receiveHammingCode(codeToSend);
+   
 
-    cout << "\nSimulation 2 (With Error):" << endl;
-    vector<int> receivedCodeWithError = codeToSend;
-    int errorBit = 3;
-    if (errorBit > 0 && errorBit <= n) {
-        cout << "(Injecting single-bit error at position " << errorBit << ")" << endl;
-        receivedCodeWithError[errorBit] = (receivedCodeWithError[errorBit] == 0) ? 1 : 0;
-        receiveHammingCode(receivedCodeWithError);
-    } else {
-        cout << "(Data packet too short to inject error at bit " << errorBit << ")" << endl;
-    }
+    //h.msg[i] == '0' ? h.msg[i] = '1' : h.msg[i] = '0';
+
+ 
+
+    h.receiver();
 
     return 0;
+
 }
